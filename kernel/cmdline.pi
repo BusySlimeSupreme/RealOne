@@ -1,0 +1,1 @@
+rootfstype=ext4 rootwait rw quiet loglevel=3 fsck.repair=yes consoleblank=0 nowatchdog audit=0 noresume init_on_alloc=1 init_on_free=1 slab_nomerge randomize_kstack_offset=on

@@ -1,0 +1,60 @@
+#!/bin/bash
+# Aegis - RealOne security vault tool. Root only.
+#   aegis status          show vault state
+#   aegis open  [file]    decrypt and print one file (or list files)
+#   aegis verify          check the vault has not been tampered with
+#   aegis reseal          re-apply the hardening from the vault
+#   aegis install-app F   install a .RAK app (shows its SHA-256, asks you to confirm, then trusts exactly that file)
+#   aegis remove-app N    remove an installed app (N = name without .RAK)
+#   aegis audit           verify the vault AND every OS file against its recorded SHA-256 (runs at every boot)
+V=/etc/realone/aegis; KEY=$V/key; ENC=$V/vault.enc; MAC=$V/vault.mac
+deny() { echo "Aegis: ACCESS DENIED - root access is required." >&2; logger -t aegis "access denied for uid $(id -u) ($(id -un 2>/dev/null))" 2>/dev/null; exit 13; }
+[ "$(id -u)" = 0 ] || deny
+[ -r "$KEY" ] && [ -r "$ENC" ] || { echo "Aegis: vault not found (is this an installed RealOneOS image?)" >&2; exit 2; }
+umask 077
+kdf() { head -c 32 "$KEY"; }            # first 32 bytes: encryption key, rest: MAC key
+mk()  { tail -c +33 "$KEY"; }
+verify() { [ "$(openssl dgst -sha256 -hmac "$(mk | base64 -w0)" -r < "$ENC" | cut -d' ' -f1)" = "$(cat "$MAC")" ]; }
+dec() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass "pass:$(kdf | base64 -w0)" -in "$ENC" 2>/dev/null; }
+verify || { echo "Aegis: VAULT FAILED INTEGRITY CHECK - it was modified or corrupted." >&2; logger -t aegis "vault integrity failure"; exit 3; }
+APPS=/usr/local/share/realone/apps; LIST=/usr/local/share/realone/apps.sha256
+# rewrite the vault after the OS file list changed (apps installed or removed)
+refresh() {
+  T=$(mktemp -d); trap 'rm -rf "$T"' RETURN
+  dec | tar -x -C "$T" || return 1
+  { find /usr/local/share/realone -type f; ls /usr/local/bin/RealOneOS /usr/local/sbin/realone-* /etc/systemd/system/realone-* /usr/sbin/aegis; } | sort -u | xargs sha256sum > "$T/integrity.sha256"
+  tar -C "$T" -c . | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass "pass:$(kdf | base64 -w0)" -out "$T.enc" || return 1
+  openssl dgst -sha256 -hmac "$(mk | base64 -w0)" -r < "$T.enc" | cut -d' ' -f1 > "$T.mac"
+  chattr -i "$ENC" "$MAC" 2>/dev/null; chmod 600 "$ENC" "$MAC"
+  cp "$T.enc" "$ENC"; cp "$T.mac" "$MAC"; chmod 400 "$ENC" "$MAC"; chattr +i "$ENC" "$MAC" 2>/dev/null; rm -f "$T.enc" "$T.mac"
+}
+unlock() { chattr -i "$LIST" "$APPS" 2>/dev/null; }
+relock() { chattr +i "$LIST" 2>/dev/null; chattr -i "$APPS" 2>/dev/null; }
+case "$1" in
+  install-app)
+    F="$2"; [ -f "$F" ] && [ ! -L "$F" ] || { echo "usage: aegis install-app file.RAK" >&2; exit 1; }
+    case "$F" in *.RAK|*.rak) ;; *) echo "Aegis: not a .RAK file" >&2; exit 1;; esac
+    N=$(basename "$F"); N="${N%.*}"; case "$N" in *[!A-Za-z0-9._-]*|'') echo "Aegis: bad app name" >&2; exit 1;; esac
+    H=$(sha256sum < "$F" | cut -d' ' -f1)
+    echo "App:     $N.RAK ($(stat -c %s "$F") bytes)"; echo "SHA-256: $H"
+    echo "WARNING: apps run inside the OS with all its access (they cannot leave Storage, but they can read and change everything in it)."
+    printf 'Type the first 12 characters of the SHA-256 to trust and install this exact file: '; read -r A
+    [ "$A" = "${H:0:12}" ] || { echo "Aegis: not confirmed, nothing installed." >&2; exit 7; }
+    unlock; install -m 644 -o root -g root "$F" "$APPS/$N.RAK"
+    grep -v "  $APPS/$N.RAK\$" "$LIST" > "$LIST.new"; echo "$H  $APPS/$N.RAK" >> "$LIST.new"; mv "$LIST.new" "$LIST"; chmod 644 "$LIST"
+    chattr +i "$APPS/$N.RAK" 2>/dev/null; relock; refresh && echo "Aegis: installed $N (restart the OS to see it)";;
+  remove-app)
+    N="$2"; case "$N" in *[!A-Za-z0-9._-]*|'') echo "usage: aegis remove-app name" >&2; exit 1;; esac
+    [ -f "$APPS/$N.RAK" ] || { echo "no such app" >&2; exit 4; }
+    unlock; chattr -i "$APPS/$N.RAK" 2>/dev/null; rm -f "$APPS/$N.RAK"
+    grep -v "  $APPS/$N.RAK\$" "$LIST" > "$LIST.new"; mv "$LIST.new" "$LIST"; chmod 644 "$LIST"; relock; refresh && echo "Aegis: removed $N";;
+  status) echo "Aegis: vault OK (AES-256, HMAC-SHA256 verified), $(dec | tar -t | wc -l) files";;
+  verify) echo "Aegis: integrity OK";;
+  open)   if [ -n "$2" ]; then dec | tar -xO "$2" 2>/dev/null || { echo "no such file: $2" >&2; exit 4; }; else dec | tar -t; fi;;
+  reseal) T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; dec | tar -x -C "$T"
+          sysctl --system >/dev/null; nft -f "$T/nftables.conf" && echo "Aegis: firewall and sysctl re-applied";;
+  audit)  T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; dec | tar -x -C "$T" ./integrity.sha256 || { echo "Aegis: no integrity list" >&2; exit 5; }
+          if sha256sum -c --quiet "$T/integrity.sha256" 2>"$T/err"; then echo "Aegis: audit OK"
+          else echo "Aegis: AUDIT FAILED - OS files were modified:" >&2; cat "$T/err" >&2; logger -t aegis "audit failed"; exit 6; fi;;
+  *)      echo "usage: aegis status|open [file]|verify|reseal|audit" >&2; exit 1;;
+esac

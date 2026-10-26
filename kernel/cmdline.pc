@@ -1,0 +1,1 @@
+rw quiet loglevel=3 console=tty1 nowatchdog nmi_watchdog=0 audit=0 consoleblank=0 noresume init_on_alloc=1 init_on_free=1 slab_nomerge page_alloc.shuffle=1 vsyscall=none debugfs=off randomize_kstack_offset=on

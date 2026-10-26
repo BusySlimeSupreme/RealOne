@@ -1,0 +1,16 @@
+# setuid/setgid bits removed from these files (one path per line)
+/bin/su
+/usr/bin/su
+/bin/mount
+/usr/bin/mount
+/bin/umount
+/usr/bin/umount
+/usr/bin/passwd
+/usr/bin/chfn
+/usr/bin/chsh
+/usr/bin/newgrp
+/usr/bin/gpasswd
+/usr/bin/chage
+/usr/bin/expiry
+/usr/bin/wall
+/usr/bin/write

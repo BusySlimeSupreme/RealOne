@@ -1,0 +1,6 @@
+id=calculator
+name=Calculator
+glyph=7
+color=FF9E0A
+order=20
+api=1

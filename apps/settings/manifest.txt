@@ -1,0 +1,6 @@
+id=settings
+name=Settings
+glyph=5
+color=7D8291
+order=10
+api=1

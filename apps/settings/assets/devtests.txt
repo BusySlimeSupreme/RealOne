@@ -1,0 +1,18 @@
+# id|danger|name|description        (danger=1 needs two taps to confirm)
+panic|1|Kernel Panic Test|Really crashes the kernel, then reboots
+crash|1|App Crash Test|Segfault RealOneOS on purpose
+freeze|0|UI Freeze Test|Block the UI for 5 seconds
+colors|0|Dead Pixel Test|Cycle solid colors, look for dead pixels
+grad|0|Gradient Test|Gray and color ramps, check banding
+touch|0|Touch Test|Dots at taps, swipe vectors
+fps|0|FPS / Render Time|Live render time and frame rate
+cpu|0|CPU Stress Test|Load every core for 4 seconds
+mem|0|Memory Stress Test|Allocate, fill and verify 64 MB
+disk|0|Storage Speed Test|Write and read a 16 MB file
+led|0|Torch Blink Test|Blink the LED / torch 6 times
+bl|0|Backlight Sweep|Ramp the backlight up and down
+rf|0|Radio / rfkill|Wi-Fi, airplane and rfkill list
+sens|0|Sensor Dump|Battery, CPU, RAM, storage values
+dmesg|0|Kernel Log (dmesg)|Last lines of dmesg
+info|0|System Info|Kernel, uptime, load, display info
+off|0|Turn Off Dev Mode|Hide the Developer tab again
