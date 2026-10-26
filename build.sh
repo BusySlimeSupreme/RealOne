@@ -48,6 +48,7 @@ trap cleanup EXIT
 echo "== Creating disk image ($SIZE) =="
 rm -f "$IMG"; truncate -s "$SIZE" "$IMG"
 LOOP="$(losetup --find --show --partscan "$IMG")"
+apt-get install -y --no-install-recommends libout123-modules || true
 if [ "$TARGET" = pi ]; then
   parted -s "$LOOP" mklabel msdos mkpart primary fat32 4MiB 260MiB mkpart primary ext4 260MiB 100%
   RAWROOT="${LOOP}p2"
@@ -72,6 +73,7 @@ mkfs.ext4 -F -L realoneos "$ROOTP"
 mount "$ROOTP" "$MNT"
 UUID="$(blkid -s UUID -o value "$ROOTP")"
 [ "$ENCRYPT" = 1 ] || ROOTSPEC="UUID=$UUID"
+apt-get install -y --no-install-recommends libout123-modules || true
 if [ "$TARGET" = pi ]; then
   mkfs.vfat -F 32 -n RPIFW "${LOOP}p1"
   BUUID="$(blkid -s UUID -o value "${LOOP}p1")"
@@ -82,6 +84,7 @@ else
 fi
 
 echo "== Installing base system (debootstrap $SUITE) =="
+apt-get install -y --no-install-recommends libout123-modules || true
 if [ "$TARGET" = pi ]; then
   update-binfmts --enable qemu-aarch64 2>/dev/null || true
   debootstrap --arch=arm64 --foreign --variant=minbase --components=main,non-free-firmware "$SUITE" "$MNT" http://deb.debian.org/debian
@@ -122,7 +125,8 @@ echo 'Acquire::Retries "5"; APT::Install-Recommends "0";' > /etc/apt/apt.conf.d/
 apt-get update
 apt-get install -y --no-install-recommends cryptsetup cryptsetup-initramfs initramfs-tools systemd-sysv udev kmod procps \
   xserver-xorg xserver-xorg-video-fbdev xserver-xorg-video-vesa xinit fonts-dejavu-core \
-  gcc libc6-dev pkg-config libcairo2-dev libx11-dev libjpeg-dev libasound2-dev libcairo2 libx11-6 libjpeg62-turbo libasound2 mpg123 libout123-modules alsa-utils
+  gcc libc6-dev pkg-config libcairo2-dev libx11-dev libjpeg-dev libasound2-dev libcairo2 libx11-6 libjpeg62-turbo libasound2 mpg123 alsa-utils
+apt-get install -y --no-install-recommends libout123-modules || true
 if [ "$TARGET" = pi ]; then
   apt-get install -y --no-install-recommends -t "$SUITE-backports" "$KERNEL_PKG_PI" "$KERNEL_FIRMWARE_PI"
 else
@@ -425,6 +429,7 @@ rm -rf /var/lib/apt/lists/*
 ln -sf ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 CH
 
+apt-get install -y --no-install-recommends libout123-modules || true
 if [ "$TARGET" = pi ]; then
 echo "== Raspberry Pi boot files =="
 ls "$MNT"/boot/firmware/vmlinuz-* >/dev/null 2>&1 || { echo "kernel was not copied to /boot/firmware"; exit 1; }
