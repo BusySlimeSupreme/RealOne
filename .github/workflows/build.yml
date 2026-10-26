@@ -3,14 +3,14 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: sudo ENCRYPT=0 TARGET=pc bash build.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: realoneos-pc
-          path: out/realoneos.qcow2
-          compression-level: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "build-${{ github.run_number }}" out/realoneos.qcow2 --title "RealOne OS" --notes "realoneos.qcow2"
